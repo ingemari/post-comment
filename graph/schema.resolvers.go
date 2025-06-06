@@ -8,36 +8,115 @@ import (
 	"context"
 	"fmt"
 	"post-comment-app/graph/model"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 // CreatePost is the resolver for the createPost field.
 func (r *mutationResolver) CreatePost(ctx context.Context, title string, content string, author string, allowComments bool) (*model.Post, error) {
-	panic(fmt.Errorf("not implemented: CreatePost - createPost"))
+	post := &model.Post{
+		ID:            uuid.NewString(),
+		Title:         title,
+		Content:       content,
+		Author:        author,
+		AllowComments: allowComments,
+		CreatedAt:     time.Now().Format(time.RFC3339),
+	}
+	r.posts = append(r.posts, post)
+	return post, nil
 }
 
 // AddComment is the resolver for the addComment field.
 func (r *mutationResolver) AddComment(ctx context.Context, postID string, parentID *string, author string, text string) (*model.Comment, error) {
-	panic(fmt.Errorf("not implemented: AddComment - addComment"))
+	// Поиск поста
+	var foundPost *model.Post
+	for _, p := range r.posts {
+		if p.ID == postID {
+			foundPost = p
+			break
+		}
+	}
+	if foundPost == nil || !foundPost.AllowComments {
+		return nil, fmt.Errorf("comments are not allowed for this post")
+	}
+	if len(text) > 2000 {
+		return nil, fmt.Errorf("comment too long")
+	}
+
+	comment := &model.Comment{
+		ID:        uuid.NewString(),
+		PostID:    postID,
+		ParentID:  parentID,
+		Author:    author,
+		Text:      text,
+		CreatedAt: time.Now().Format(time.RFC3339),
+	}
+	r.comments = append(r.comments, comment)
+
+	// Отправляем уведомления подписчикам
+	if r.subscribers != nil {
+		for _, ch := range r.subscribers[postID] {
+			select {
+			case ch <- comment:
+				// уведомление отправлено
+			default:
+				// канал переполнен — пропускаем, чтобы не блокировать
+			}
+		}
+	}
+
+	return comment, nil
 }
 
 // Posts is the resolver for the posts field.
 func (r *queryResolver) Posts(ctx context.Context) ([]*model.Post, error) {
-	panic(fmt.Errorf("not implemented: Posts - posts"))
+	return r.posts, nil
 }
 
 // Post is the resolver for the post field.
 func (r *queryResolver) Post(ctx context.Context, id string) (*model.Post, error) {
-	panic(fmt.Errorf("not implemented: Post - post"))
+	for _, p := range r.posts {
+		if p.ID == id {
+			return p, nil
+		}
+	}
+	return nil, fmt.Errorf("post not found")
 }
 
 // Comment is the resolver for the comment field.
 func (r *queryResolver) Comment(ctx context.Context, id string) (*model.Comment, error) {
-	panic(fmt.Errorf("not implemented: Comment - comment"))
+	for _, c := range r.comments {
+		if c.ID == id {
+			return c, nil
+		}
+	}
+	return nil, fmt.Errorf("comment not found")
 }
 
 // CommentAdded is the resolver for the commentAdded field.
 func (r *subscriptionResolver) CommentAdded(ctx context.Context, postID string) (<-chan *model.Comment, error) {
-	panic(fmt.Errorf("not implemented: CommentAdded - commentAdded"))
+	ch := make(chan *model.Comment, 1) // буфер 1, чтобы не блокироваться
+
+	if r.subscribers == nil {
+		r.subscribers = make(map[string][]chan *model.Comment)
+	}
+
+	r.subscribers[postID] = append(r.subscribers[postID], ch)
+
+	// При закрытии контекста (клиент отключился) удаляем канал из подписчиков
+	go func() {
+		<-ctx.Done()
+		subs := r.subscribers[postID]
+		for i, subscriber := range subs {
+			if subscriber == ch {
+				r.subscribers[postID] = append(subs[:i], subs[i+1:]...)
+				break
+			}
+		}
+	}()
+
+	return ch, nil
 }
 
 // Mutation returns MutationResolver implementation.
@@ -52,18 +131,3 @@ func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionRes
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type subscriptionResolver struct{ *Resolver }
-
-// !!! WARNING !!!
-// The code below was going to be deleted when updating resolvers. It has been copied here so you have
-// one last chance to move it out of harms way if you want. There are two reasons this happens:
-//  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
-//    it when you're done.
-//  - You have helper methods in this file. Move them out to keep these resolver files clean.
-/*
-	func (r *mutationResolver) CreateTodo(ctx context.Context, input model.NewTodo) (*model.Todo, error) {
-	panic(fmt.Errorf("not implemented: CreateTodo - createTodo"))
-}
-func (r *queryResolver) Todos(ctx context.Context) ([]*model.Todo, error) {
-	panic(fmt.Errorf("not implemented: Todos - todos"))
-}
-*/
