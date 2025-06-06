@@ -8,62 +8,16 @@ import (
 	"context"
 	"fmt"
 	"post-comment-app/graph/model"
-	"strconv"
 )
 
 // CreatePost is the resolver for the createPost field.
-func (r *mutationResolver) CreatePost(ctx context.Context, title string, content string, allowComments bool) (*model.Post, error) {
-	r.mu.Lock()
-	id := strconv.Itoa(r.postIDCounter)
-	r.postIDCounter++
-	r.mu.Unlock()
-
-	post := &model.Post{
-		ID:            id,
-		Title:         title,
-		Content:       content,
-		AllowComments: allowComments,
-	}
-	r.mu.Lock()
-	r.Posts = append(r.Posts, post)
-	r.mu.Unlock()
-	return post, nil
+func (r *mutationResolver) CreatePost(ctx context.Context, title string, content string, author string, allowComments bool) (*model.Post, error) {
+	panic(fmt.Errorf("not implemented: CreatePost - createPost"))
 }
 
 // AddComment is the resolver for the addComment field.
-func (r *mutationResolver) AddComment(ctx context.Context, postID string, parentID *string, text string) (*model.Comment, error) {
-	if len(text) > 2000 {
-		return nil, fmt.Errorf("comment text too long (max 2000 chars)")
-	}
-
-	r.mu.Lock()
-	var postExists bool
-	for _, post := range r.Posts {
-		if post.ID == postID {
-			postExists = true
-			break
-		}
-	}
-	if !postExists {
-		r.mu.Unlock()
-		return nil, fmt.Errorf("post with ID %s not found", postID)
-	}
-
-	id := strconv.Itoa(r.commentIDCounter)
-	r.commentIDCounter++
-	r.mu.Unlock()
-
-	comment := &model.Comment{
-		ID:       id,
-		PostID:   postID,
-		ParentID: parentID,
-		Text:     text,
-	}
-
-	r.mu.Lock()
-	r.Comments = append(r.Comments, comment)
-	r.mu.Unlock()
-	return comment, nil
+func (r *mutationResolver) AddComment(ctx context.Context, postID string, parentID *string, author string, text string) (*model.Comment, error) {
+	panic(fmt.Errorf("not implemented: AddComment - addComment"))
 }
 
 // Posts is the resolver for the posts field.
@@ -73,21 +27,12 @@ func (r *queryResolver) Posts(ctx context.Context) ([]*model.Post, error) {
 
 // Post is the resolver for the post field.
 func (r *queryResolver) Post(ctx context.Context, id string) (*model.Post, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	for _, original := range r.Posts {
-		if original.ID == id {
-			copy := &model.Post{
-				ID:            original.ID,
-				Title:         original.Title,
-				Content:       original.Content,
-				AllowComments: original.AllowComments,
-			}
-			copy.Comments = r.buildCommentTree(copy.ID, nil, r.Comments)
-			return copy, nil
-		}
-	}
-	return nil, fmt.Errorf("post not found")
+	panic(fmt.Errorf("not implemented: Post - post"))
+}
+
+// Comment is the resolver for the comment field.
+func (r *queryResolver) Comment(ctx context.Context, id string) (*model.Comment, error) {
+	panic(fmt.Errorf("not implemented: Comment - comment"))
 }
 
 // CommentAdded is the resolver for the commentAdded field.
@@ -107,3 +52,18 @@ func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionRes
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type subscriptionResolver struct{ *Resolver }
+
+// !!! WARNING !!!
+// The code below was going to be deleted when updating resolvers. It has been copied here so you have
+// one last chance to move it out of harms way if you want. There are two reasons this happens:
+//  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
+//    it when you're done.
+//  - You have helper methods in this file. Move them out to keep these resolver files clean.
+/*
+	func (r *mutationResolver) CreateTodo(ctx context.Context, input model.NewTodo) (*model.Todo, error) {
+	panic(fmt.Errorf("not implemented: CreateTodo - createTodo"))
+}
+func (r *queryResolver) Todos(ctx context.Context) ([]*model.Todo, error) {
+	panic(fmt.Errorf("not implemented: Todos - todos"))
+}
+*/
