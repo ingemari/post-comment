@@ -12,8 +12,6 @@ import (
 
 type Resolver struct {
 	storage     storage.Storage
-	posts       []*model.Post
-	comments    []*model.Comment
 	subscribers map[string][]chan *model.Comment
 	mu          sync.RWMutex
 }
@@ -21,8 +19,6 @@ type Resolver struct {
 func NewResolver() *Resolver {
 	return &Resolver{
 		storage:     storage.NewInMemoryStorage(),
-		posts:       []*model.Post{},
-		comments:    []*model.Comment{},
 		subscribers: make(map[string][]chan *model.Comment),
 	}
 }

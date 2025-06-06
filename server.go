@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"post-comment-app/graph"
+	"time"
 )
 
 const defaultPort = "8080"
@@ -26,6 +27,9 @@ func main() {
 	srv.AddTransport(transport.Options{})
 	srv.AddTransport(transport.GET{})
 	srv.AddTransport(transport.POST{})
+	srv.AddTransport(transport.Websocket{
+		KeepAlivePingInterval: 10 * time.Second,
+	})
 
 	srv.SetQueryCache(lru.New[*ast.QueryDocument](1000))
 
