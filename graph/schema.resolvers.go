@@ -77,6 +77,8 @@ func (r *mutationResolver) AddComment(ctx context.Context, postID string, parent
 	}
 
 	// Отправляем уведомления подписчикам
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	if subs, ok := r.subscribers[postID]; ok {
 		for _, ch := range subs {
 			select {
@@ -99,12 +101,14 @@ func (r *queryResolver) Posts(ctx context.Context) ([]*model.Post, error) {
 
 // Post is the resolver for the post field.
 func (r *queryResolver) Post(ctx context.Context, id string) (*model.Post, error) {
-	for _, p := range r.posts {
-		if p.ID == id {
-			return p, nil
-		}
+	log.Printf("Fetching post with ID: %s", id)
+	post, err := r.storage.GetPost(ctx, id)
+	if err != nil {
+		log.Printf("Error fetching post: %v", err)
+		return nil, err
 	}
-	return nil, fmt.Errorf("post not found")
+	log.Printf("Post %s fetched successfully", id)
+	return post, nil
 }
 
 // Comment is the resolver for the comment field.
@@ -121,17 +125,20 @@ func (r *queryResolver) Comment(ctx context.Context, id string) (*model.Comment,
 
 // CommentAdded is the resolver for the commentAdded field.
 func (r *subscriptionResolver) CommentAdded(ctx context.Context, postID string) (<-chan *model.Comment, error) {
+	log.Printf("New subscription for postID: %s", postID)
 	ch := make(chan *model.Comment, 1) // буфер 1, чтобы не блокироваться
 
-	if r.subscribers == nil {
-		r.subscribers = make(map[string][]chan *model.Comment)
-	}
-
+	// Добавляем канал в подписчики с синхронизацией
+	r.mu.Lock()
 	r.subscribers[postID] = append(r.subscribers[postID], ch)
+	r.mu.Unlock()
 
-	// При закрытии контекста (клиент отключился) удаляем канал из подписчиков
+	// При закрытии контекста удаляем канал
 	go func() {
 		<-ctx.Done()
+		log.Printf("Cleaning up subscription for postID: %s", postID)
+		r.mu.Lock()
+		defer r.mu.Unlock()
 		subs := r.subscribers[postID]
 		for i, subscriber := range subs {
 			if subscriber == ch {

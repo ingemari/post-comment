@@ -3,6 +3,7 @@ package graph
 import (
 	"post-comment-app/graph/model"
 	"post-comment-app/storage"
+	"sync"
 )
 
 // This file will not be regenerated automatically.
@@ -14,6 +15,7 @@ type Resolver struct {
 	posts       []*model.Post
 	comments    []*model.Comment
 	subscribers map[string][]chan *model.Comment
+	mu          sync.RWMutex
 }
 
 func NewResolver() *Resolver {
