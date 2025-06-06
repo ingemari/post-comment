@@ -7,6 +7,7 @@ package graph
 import (
 	"context"
 	"fmt"
+	"log"
 	"post-comment-app/graph/model"
 	"time"
 
@@ -23,27 +24,43 @@ func (r *mutationResolver) CreatePost(ctx context.Context, title string, content
 		AllowComments: allowComments,
 		CreatedAt:     time.Now().Format(time.RFC3339),
 	}
-	r.posts = append(r.posts, post)
+	if err := r.storage.CreatePost(ctx, post); err != nil {
+		return nil, err
+	}
 	return post, nil
 }
 
 // AddComment is the resolver for the addComment field.
 func (r *mutationResolver) AddComment(ctx context.Context, postID string, parentID *string, author string, text string) (*model.Comment, error) {
-	// Поиск поста
-	var foundPost *model.Post
-	for _, p := range r.posts {
-		if p.ID == postID {
-			foundPost = p
-			break
-		}
+	log.Printf("Adding comment to postID: %s, parentID: %v", postID, parentID)
+
+	// Поиск поста через storage
+	post, err := r.storage.GetPost(ctx, postID)
+	if err != nil {
+		log.Printf("Error getting post: %v", err)
+		return nil, fmt.Errorf("post not found")
 	}
-	if foundPost == nil || !foundPost.AllowComments {
+	if !post.AllowComments {
+		log.Println("Comments are not allowed for this post")
 		return nil, fmt.Errorf("comments are not allowed for this post")
 	}
+
+	// Проверка длины комментария
 	if len(text) > 2000 {
+		log.Println("Comment too long")
 		return nil, fmt.Errorf("comment too long")
 	}
 
+	// Проверка parentID, если указан
+	if parentID != nil {
+		_, err := r.storage.GetComment(ctx, *parentID)
+		if err != nil {
+			log.Printf("Error getting parent comment: %v", err)
+			return nil, fmt.Errorf("parent comment not found")
+		}
+	}
+
+	// Создание комментария
 	comment := &model.Comment{
 		ID:        uuid.NewString(),
 		PostID:    postID,
@@ -52,26 +69,32 @@ func (r *mutationResolver) AddComment(ctx context.Context, postID string, parent
 		Text:      text,
 		CreatedAt: time.Now().Format(time.RFC3339),
 	}
-	r.comments = append(r.comments, comment)
+
+	// Сохранение комментария через storage
+	if err := r.storage.CreateComment(ctx, comment); err != nil {
+		log.Printf("Error creating comment: %v", err)
+		return nil, err
+	}
 
 	// Отправляем уведомления подписчикам
-	if r.subscribers != nil {
-		for _, ch := range r.subscribers[postID] {
+	if subs, ok := r.subscribers[postID]; ok {
+		for _, ch := range subs {
 			select {
 			case ch <- comment:
-				// уведомление отправлено
+				log.Printf("Sent notification for comment %s to subscriber", comment.ID)
 			default:
-				// канал переполнен — пропускаем, чтобы не блокировать
+				log.Printf("Skipped notification for comment %s: channel full", comment.ID)
 			}
 		}
 	}
 
+	log.Printf("Comment %s created successfully", comment.ID)
 	return comment, nil
 }
 
 // Posts is the resolver for the posts field.
 func (r *queryResolver) Posts(ctx context.Context) ([]*model.Post, error) {
-	return r.posts, nil
+	return r.storage.GetPosts(ctx)
 }
 
 // Post is the resolver for the post field.
@@ -86,12 +109,14 @@ func (r *queryResolver) Post(ctx context.Context, id string) (*model.Post, error
 
 // Comment is the resolver for the comment field.
 func (r *queryResolver) Comment(ctx context.Context, id string) (*model.Comment, error) {
-	for _, c := range r.comments {
-		if c.ID == id {
-			return c, nil
-		}
+	log.Printf("Fetching comment with ID: %s", id)
+	comment, err := r.storage.GetComment(ctx, id)
+	if err != nil {
+		log.Printf("Error fetching comment: %v", err)
+		return nil, err
 	}
-	return nil, fmt.Errorf("comment not found")
+	log.Printf("Comment %s fetched successfully", id)
+	return comment, nil
 }
 
 // CommentAdded is the resolver for the commentAdded field.

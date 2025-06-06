@@ -1,17 +1,16 @@
 package main
 
 import (
-	"log"
-	"net/http"
-	"os"
-	"post-comment-app/graph"
-
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/extension"
 	"github.com/99designs/gqlgen/graphql/handler/lru"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/vektah/gqlparser/v2/ast"
+	"log"
+	"net/http"
+	"os"
+	"post-comment-app/graph"
 )
 
 const defaultPort = "8080"
@@ -22,7 +21,7 @@ func main() {
 		port = defaultPort
 	}
 
-	srv := handler.New(graph.NewExecutableSchema(graph.Config{Resolvers: &graph.Resolver{}}))
+	srv := handler.New(graph.NewExecutableSchema(graph.Config{Resolvers: graph.NewResolver()}))
 
 	srv.AddTransport(transport.Options{})
 	srv.AddTransport(transport.GET{})
