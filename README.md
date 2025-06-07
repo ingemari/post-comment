@@ -1,35 +1,21 @@
 # Приложение для постов и комментариев
 
-Это приложение на языке Go, использующее GraphQL для управления постами и комментариями с поддержкой иерархической структуры комментариев и уведомлений в реальном времени через подписки. Приложение по умолчанию использует in-memory хранилище и разработано с учетом легкости, расширяемости и возможности развертывания через Docker.
+GraphQL-приложение на Go для управления постами и комментариями с иерархической структурой и реальным временем через подписки. Поддерживает in-memory и PostgreSQL хранилища.
 
 ## Возможности
-- Создание и получение постов с заголовками, содержимым и информацией об авторе.
-- Добавление и получение комментариев с поддержкой вложенных ответов.
-- Возможность включения или отключения комментариев для отдельных постов.
-- Пагинация для комментариев и ответов.
-- Уведомления в реальном времени о новых комментариях через GraphQL Subscriptions.
-- In-memory хранилище для хранения данных.
-- Модульные тесты для основного функционала.
-- Поддержка Docker для простого развертывания.
-
-## Запуск с Docker
-1. **Соберите Docker-образ**:
-   ```bash
-   docker build -t post-comment-app .
-   ```
-
-2. **Запустите Docker-контейнер**:
-   ```bash
-   docker run -p 8080:8080 post-comment-app
-   ```
-
-3. GraphQL API будет доступен по адресу `http://localhost:8080`.
+- Создание и просмотр постов.
+- Добавление и просмотр иерархических комментариев.
+- Запрет комментариев для постов.
+- Пагинация комментариев и ответов.
+- Уведомления о новых комментариях через GraphQL Subscriptions.
+- Хранилища: in-memory или PostgreSQL (через `STORAGE_TYPE`).
+- Потокобезопасность.
+- Unit-тесты.
+- Docker-развертывание.
 
 ## GraphQL API
-Приложение предоставляет GraphQL API со следующими основными операциями:
-
-### Запросы (Queries)
-- `posts`: Получение списка всех постов.
+### Запросы
+- `posts`:
   ```graphql
   query {
     posts {
@@ -41,73 +27,87 @@
     }
   }
   ```
-- `post(id: String!)`: Получение конкретного поста по ID.
+- `post`:
   ```graphql
   query {
     post(id: "post-id") {
       id
       title
-      content
-      author
-      comments {
+      comments(limit: 2, offset: 0) {
         id
         text
-        author
-        replies {
+        replies(limit: 2, offset: 0) {
           id
           text
-          author
         }
       }
     }
   }
   ```
 
-### Мутации (Mutations)
-- `createPost(title: String!, content: String!, author: String!, allowComments: Boolean!)`: Создание нового поста.
+### Мутации
+- `createPost`:
   ```graphql
   mutation {
-    createPost(title: "New Post", content: "This is a post", author: "John Doe", allowComments: true) {
+    createPost(title: "Test", content: "Content", author: "Author", allowComments: true) {
       id
-      title
-      content
-      author
-      allowComments
     }
   }
   ```
-- `addComment(postId: String!, parentId: String, author: String!, text: String!)`: Добавление комментария к посту или другому комментарию.
+- `addComment`:
   ```graphql
   mutation {
-    addComment(postId: "post-id", parentId: "parent-comment-id", author: "Jane Doe", text: "This is a comment") {
+    addComment(postId: "post-id", author: "User", text: "Comment") {
       id
       text
-      author
-      postId
-      parentId
     }
   }
   ```
 
-### Подписки (Subscriptions)
-- `commentAdded(postId: String!)`: Подписка на уведомления о новых комментариях к конкретному посту.
+### Подписки
+- `commentAdded`:
   ```graphql
   subscription {
     commentAdded(postId: "post-id") {
       id
       text
-      author
-      postId
-      parentId
     }
   }
   ```
 
 ## Тестирование
-Для запуска модульных тестов выполните:
 ```bash
 go test ./...
 ```
 
+## Структура проекта
+```
+post-comment-app/
+├── graph/
+│   ├── generated.go
+│   ├── resolver.go
+│   ├── schema.resolvers.go
+│   ├── schema.resolvers_test.go
+├── storage/
+│   ├── storage.go
+│   ├── inmemory.go
+│   ├── postgres.go
+│   ├── postgres_test.go
+├── server.go
+├── schema.sql
+├── Dockerfile
+├── docker-compose.yml
+├── .env
+├── .env.example
+├── .gitignore
+├── README.md
+```
+
+## Конфигурация
+- `PORT`: Порт (по умолчанию 8080).
+- `STORAGE_TYPE`: `inmemory` или `postgres`.
+- `DATABASE_URL`: Строка подключения PostgreSQL.
+- `TEST_DATABASE_URL`: Строка подключения для тестов.
+
 ## Лицензия
-MIT License. См. файл `LICENSE` для подробностей.
+MIT License.
